@@ -25,6 +25,10 @@
 				<!-- JRobinRrdStrategy-specific properties -->
 				<prop key="org.jrobin.core.RrdBackendFactory">FILE</prop>
 
+				<!-- JRobinRrdStrategy-specific properties -->
+				<prop key="org.rrd4j.core.RrdBackendFactory">FILE</prop>
+				<prop key="org.rrd4j.core.RrdVersion">1</prop>
+
 				<!-- TcpRrdStrategy-specific properties, blank by default to disable this output -->
 				<prop key="org.opennms.rrd.tcp.host" />
 				<prop key="org.opennms.rrd.tcp.port">0</prop>

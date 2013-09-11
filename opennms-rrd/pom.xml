@@ -12,6 +12,7 @@
   <modules>
     <module>opennms-rrd-api</module>
     <module>opennms-rrd-jrobin</module>
+    <module>opennms-rrd-rrd4j</module>
     <module>opennms-rrd-rrdtool</module>
     <module>opennms-rrd-tcp</module>
   </modules>

@@ -1582,6 +1582,12 @@
       </dependency>
       <dependency>
         <groupId>org.opennms.dependencies</groupId>
+        <artifactId>rrd4j-dependencies</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+      </dependency>
+      <dependency>
+        <groupId>org.opennms.dependencies</groupId>
         <artifactId>jrrd-dependencies</artifactId>
         <version>${project.version}</version>
         <type>pom</type>
@@ -1950,6 +1956,11 @@
       <dependency>
         <groupId>org.opennms</groupId>
         <artifactId>opennms-rrd-jrobin</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.opennms</groupId>
+        <artifactId>opennms-rrd-rrd4j</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
