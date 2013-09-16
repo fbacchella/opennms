@@ -29,6 +29,8 @@
 package org.opennms.netmgt.rrd.rrd4j;
 
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,17 +61,17 @@ import org.rrd4j.core.RrdDb;
 import org.rrd4j.core.RrdDef;
 import org.rrd4j.core.Sample;
 import org.rrd4j.core.timespec.TimeParser;
-import org.rrd4j.data.Plottable;
 import org.rrd4j.data.Variable;
 import org.rrd4j.graph.RrdGraph;
 import org.rrd4j.graph.RrdGraphConstants;
+import org.rrd4j.graph.RrdGraphConstants.FontTag;
 import org.rrd4j.graph.RrdGraphDef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 /**
- * Provides a JRobin based implementation of RrdStrategy. It uses JRobin 1.4 in
+ * Provides a RRD4J based implementation of RrdStrategy. It uses RRD4J 2.3 in
  * FILE mode (NIO is too memory consuming for the large number of files that we
  * open)
  *
@@ -80,12 +82,16 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     private static final Logger LOG = LoggerFactory.getLogger(Rrd4JRrdStrategy.class);
     private static final String BACKEND_FACTORY_PROPERTY = "org.rrd4j.core.RrdBackendFactory";
     private static final String DEFAULT_BACKEND_FACTORY = "FILE";
+    private static final String VERSION_PROPERTY = "org.rrd4j.core.RrdVersion";
+    private static final int DEFAULT_VERSION = 1;
     private static final Set<String> COLORNAMES = new HashSet<String>(RrdGraphConstants.COLOR_NAMES.length);
     private static final String FLOATINGPOINTPATTERN = "[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?";  // see http://www.regular-expressions.info/floatingpoint.html, removed the [+-]?
     private static final Pattern LINEPATTERN = Pattern.compile("LINE(" + FLOATINGPOINTPATTERN + "):");
-    
+    private static final Set<String> FONTS = new HashSet<String>();
+
     static {
         COLORNAMES.addAll(Arrays.asList(RrdGraphConstants.COLOR_NAMES));
+        FONTS.addAll(Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
     }
 
     final class GraphDefInformations {
@@ -151,7 +157,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         File f = new File(directory);
         f.mkdirs();
 
-        String fileName = directory + File.separator + rrdName + ".rrd"; //RrdUtils.getExtension();
+        String fileName = directory + File.separator + rrdName + RrdUtils.getExtension();
 
         if (new File(fileName).exists()) {
             LOG.debug("createDefinition: filename [{}] already exists returning null as definition", fileName);
@@ -160,7 +166,15 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
         RrdDef def = new RrdDef(fileName);
 
-        def.setVersion(2);
+        int version;
+        if (m_configurationProperties != null) {
+            String versionStr =  m_configurationProperties.getProperty(VERSION_PROPERTY);
+            version = stringToType(versionStr, DEFAULT_VERSION);
+        } else {
+            version = DEFAULT_VERSION;
+        }
+
+        def.setVersion(version);
 
         def.setStartTime(1000);
         def.setStep(step);
@@ -179,7 +193,6 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
         return def;
     }
-
 
     /**
      * Creates the RRD4J RrdDb from the def by opening the file and then
@@ -203,16 +216,16 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         int lastIndexOfSeparator = filenameWithoutExtension.lastIndexOf(File.separator);
 
         RrdUtils.createMetaDataFile(
-                                    filenameWithoutExtension.substring(0, lastIndexOfSeparator),
-                                    filenameWithoutExtension.substring(lastIndexOfSeparator),
-                                    attributeMappings
+                filenameWithoutExtension.substring(0, lastIndexOfSeparator),
+                filenameWithoutExtension.substring(lastIndexOfSeparator),
+                attributeMappings
                 );
     }
 
     /**
      * {@inheritDoc}
      *
-     * Opens the JRobin RrdDb by name and returns it.
+     * Opens the RRD4J RrdDb by name and returns it.
      */
     @Override
     public RrdDb openFile(final String fileName) throws Exception {
@@ -629,6 +642,9 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             // border
             // dynamic-labels
             // zoom
+            // font-render-mode
+            // font-smoothing-threshold
+            // pango-markup
             else if(arg.startsWith("DEF:")) {
                 GraphDefInformations infos = parseGraphDefElement(arg, 3, true);
                 // LOG.debug("ds = {}", Arrays.toString(ds));
@@ -819,23 +835,26 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     }
 
     private void processRrdFontArgument(RrdGraphDef graphDef, String argParm) {
-        /*
-		String[] argValue = tokenize(argParm, ":", true);
-		if (argValue[0].equals("DEFAULT")) {
-			int newPointSize = Integer.parseInt(argValue[1]);
-			graphDef.setSmallFont(graphDef.getSmallFont().deriveFont(newPointSize));
-		} else if (argValue[0].equals("TITLE")) {
-			int newPointSize = Integer.parseInt(argValue[1]);
-			graphDef.setLargeFont(graphDef.getLargeFont().deriveFont(newPointSize));
-		} else {
-			try {
-				Font font = Font.createFont(Font.TRUETYPE_FONT, new File(argValue[0]));
-			} catch (Throwable e) {
-				// oh well, fall back to existing font stuff
-				LOG.warn("unable to create font from font argument {}", argParm, e);
-			}
-		}
-         */
+        String[] argValue = colonSplit(argParm);
+        int newPointSize = stringToType(argValue[1], 0);
+        FontTag ft = FontTag.valueOf(argValue[0]);
+        if(argValue.length == 2 || argValue[2].trim().isEmpty()) {
+            graphDef.setFont(ft, graphDef.getFont(ft).deriveFont(newPointSize));            
+        } else {
+            try {
+                Font font;
+                if(FONTS.contains(argValue[2])) {
+                    font = new Font(argValue[2], Font.PLAIN, newPointSize);
+                }
+                else {
+                    font = Font.createFont(Font.TRUETYPE_FONT, new File(argValue[2]));
+                }
+                graphDef.setFont(ft, font);
+            } catch (Throwable e) {
+                // oh well, fall back to existing font stuff
+                LOG.warn("unable to create font from font argument {}", argParm, e);
+            }
+        }
     }
 
     private String[] tokenize(final String line, final String delimiters, final boolean processQuotes) {
@@ -869,7 +888,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
         // These are the documented RRD color tags
         try {
-            
+
             if (COLORNAMES.contains(colorTag.toLowerCase())) {
                 graphDef.setColor(colorTag, color);
             }
@@ -1098,7 +1117,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         int labelSpan = stringToType(tokens[6], Integer.MIN_VALUE);
         String fmt = tokens[7];
         graphDef.setTimeAxis(minorUnit, minorUnitCount, majorUnit, majorUnitCount,
-                             labelUnit, labelUnitCount, labelSpan, fmt);
+                labelUnit, labelUnitCount, labelSpan, fmt);
     }
 
     private int resolveUnit(String unitName) {

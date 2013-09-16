@@ -35,16 +35,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.rrd4j.core.RrdDb;
-import org.rrd4j.core.RrdDef;
-import org.rrd4j.core.Sample;
-import org.rrd4j.graph.RrdGraph;
-import org.rrd4j.graph.RrdGraphDef;
-import org.rrd4j.graph.RrdGraphInfo;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -54,12 +49,16 @@ import org.opennms.netmgt.rrd.RrdDataSource;
 import org.opennms.netmgt.rrd.RrdException;
 import org.opennms.netmgt.rrd.RrdGraphDetails;
 import org.opennms.netmgt.rrd.RrdStrategy;
-import org.opennms.netmgt.rrd.RrdUtils;
-import org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy;
 import org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy.GraphDefInformations;
 import org.opennms.test.FileAnticipator;
 import org.opennms.test.ThrowableAnticipator;
 import org.opennms.test.mock.MockUtil;
+import org.rrd4j.core.RrdDb;
+import org.rrd4j.core.RrdDef;
+import org.rrd4j.core.Sample;
+import org.rrd4j.graph.RrdGraph;
+import org.rrd4j.graph.RrdGraphDef;
+import org.rrd4j.graph.RrdGraphInfo;
 import org.springframework.util.StringUtils;
 
 /**
@@ -68,22 +67,17 @@ import org.springframework.util.StringUtils;
  * @author <a href="mailto:dj@opennms.org">DJ Gregor</a>
  */
 public class Rrd4JRrdStrategyTest {
-    
+
     private RrdStrategy<RrdDef,RrdDb> m_strategy;
     private FileAnticipator m_fileAnticipator;
-    
-    
-    private static String getExtension() {
-        return ".rrd";
-    }
 
     @Before
     public void setUp() throws Exception {
         // Make sure that AWT headless mode is enabled
         System.setProperty("java.awt.headless", "true");
-        
+
         MockLogAppender.setupLogging(true, "DEBUG");
-        
+
         m_strategy = new Rrd4JRrdStrategy();
 
         // Don't initialize by default since not all tests need it.
@@ -100,9 +94,9 @@ public class Rrd4JRrdStrategyTest {
 
     @Test
     public void testInitialize() {
-       // Don't do anything... just check that setUp works 
+        // Don't do anything... just check that setUp works 
     }
-    
+
     @Test
     public void testCommandWithoutDrawing() throws Exception {
         long end = System.currentTimeMillis();
@@ -116,17 +110,17 @@ public class Rrd4JRrdStrategyTest {
         } catch (Throwable t) {
             System.out.println(t);
             ta.throwableReceived(t);
-            
+
             // We don't care about the exact message, just a few details
             String problemText = "no graph was produced";
             assertTrue("cause message should contain '" + problemText + "'", t.getMessage().contains(problemText));
-            
+
             String suggestionText = "Does the command have any drawing commands";
             assertTrue("cause message should contain '" + suggestionText + "'", t.getMessage().contains(suggestionText));
         }
         ta.verifyAnticipated();
     }
-    
+
     @Test
     public void testDefWithEscapedCharacters() throws Exception {
         long end = System.currentTimeMillis() / 1000;
@@ -152,23 +146,23 @@ public class Rrd4JRrdStrategyTest {
             RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
             @SuppressWarnings("unused")
             RrdGraph graph = new RrdGraph(graphDef);
-        } catch (final RuntimeException e) {
-        	t = e;
+        } catch (final IOException e) {
+            t = e;
         }
         assertNotNull(t);
         t.printStackTrace();
-        
-    	assertTrue("message was " + t.getMessage(), t.getMessage().contains("Could not open "));
-    	assertTrue("message was " + t.getMessage(), t.getMessage().contains("fe80:0000:0000:0000:0000:0000:0000:0000%5"));
+
+        assertTrue("message was " + t.getMessage(), t.getMessage().contains("Could not open "));
+        assertTrue("message was " + t.getMessage(), t.getMessage().contains("fe80:0000:0000:0000:0000:0000:0000:0000%5"));
     }
 
     @Test
     public void testCreate() throws Exception {
         File rrdFile = createRrdFile();
-        
+
         RrdDb openedFile = m_strategy.openFile(rrdFile.getAbsolutePath());
         //m_strategy.updateFile(openedFile, "huh?", "N:1,234234");
-        
+
         Sample sample = ((RrdDb) openedFile).createSample();
         sample.set("N:1.234 something not that politically incorrect");
         System.err.println(sample.dump());
@@ -179,7 +173,7 @@ public class Rrd4JRrdStrategyTest {
     @Test
     public void testUpdate() throws Exception {
         File rrdFile = createRrdFile();
-        
+
         RrdDb openedFile = m_strategy.openFile(rrdFile.getAbsolutePath());
         m_strategy.updateFile(openedFile, "huh?", "N:1.234234");
         m_strategy.closeFile(openedFile);
@@ -188,18 +182,18 @@ public class Rrd4JRrdStrategyTest {
     @Test
     public void testSampleSetFloatingPointValueGood() throws Exception {
         File rrdFile = createRrdFile();
-        
+
         RrdDb openedFile = m_strategy.openFile(rrdFile.getAbsolutePath());
-        
+
         Sample sample = openedFile.createSample();
         sample.set("N:1.234");
         m_strategy.closeFile(openedFile);
-        
+
         double[] values = sample.getValues();
         assertEquals("values list size", 1, values.length);
         assertEquals("values item 0", 1.234, values[0], 0.0);
     }
-    
+
     @Test
     public void testSampleVDEFPercentile() throws Exception {
         Double[] vals = {
@@ -207,12 +201,12 @@ public class Rrd4JRrdStrategyTest {
         };
         File rrdFile = createRrdFile();
         RrdDb openedFile = m_strategy.openFile(rrdFile.getAbsolutePath());
-        
+
         // This file's step size is 300
         int endTime = (int)(System.currentTimeMillis() / 1000);
         endTime -= (endTime % 300);
         int startTime = endTime - (200 * 300);
-        
+
         // Got to throw away the first sample
         m_strategy.updateFile(openedFile, "huh?", (startTime - 300) + ":" + "0.0");
 
@@ -222,13 +216,13 @@ public class Rrd4JRrdStrategyTest {
             sampleTime += 300;
         }
         m_strategy.closeFile(openedFile);
-        
+
         String[] command;
         RrdGraphDef graphDef;
         RrdGraph graph;
         RrdGraphInfo info;
         String[] printLines;
-        
+
         command = new String[] {
                 "--start=" + (startTime - 300),
                 "--end=" + (endTime + 300),
@@ -247,10 +241,10 @@ public class Rrd4JRrdStrategyTest {
         graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
         graph = new RrdGraph(graphDef);
         assertNotNull("graph object", graph);
-        
+
         info = graph.getRrdGraphInfo();
         assertNotNull("graph info object", info);
-        
+
         printLines = info.getPrintLines();
         assertNotNull("graph printLines - DEF", printLines);
         assertEquals("graph printLines - DEF size", 5, printLines.length);
@@ -283,10 +277,10 @@ public class Rrd4JRrdStrategyTest {
         graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
         graph = new RrdGraph(graphDef);
         assertNotNull("graph object", graph);
-        
+
         info = graph.getRrdGraphInfo();
         assertNotNull("graph info object", info);
-        
+
         printLines = info.getPrintLines();
         assertNotNull("graph printLines - CDEF", printLines);
         assertEquals("graph printLines - CDEF size", 6, printLines.length);
@@ -296,7 +290,7 @@ public class Rrd4JRrdStrategyTest {
         assertEquals("graph printLines - CDEF item 3", "9.896721e+09", printLines[3]);
         assertEquals("graph printLines - CDEF item 4", "9.574000e+03", printLines[4]);
         assertEquals("graph printLines - CDEF item 5", "9.574000e+03", printLines[5]);
-        
+
     }
 
     /**
@@ -308,13 +302,13 @@ public class Rrd4JRrdStrategyTest {
     @Ignore("fails due to bug 2272")
     public void testSampleSetFloatingPointValueWithComma() throws Exception {
         File rrdFile = createRrdFile();
-        
+
         RrdDb openedFile = m_strategy.openFile(rrdFile.getAbsolutePath());
-        
+
         Sample sample = openedFile.createSample();
         sample.set("N:1,234");
         m_strategy.closeFile(openedFile);
-        
+
         double[] values = sample.getValues();
         assertEquals("values list size", 1, values.length);
         assertEquals("values item 0", 1.234, values[0], 0.0);
@@ -329,11 +323,11 @@ public class Rrd4JRrdStrategyTest {
     @Ignore("fails due to bug 2272")
     public void testSampleSetFloatingPointValueWithExtraJunk() throws Exception {
         File rrdFile = createRrdFile();
-        
+
         RrdDb openedFile = m_strategy.openFile(rrdFile.getAbsolutePath());
-        
+
         Sample sample = openedFile.createSample();
-        
+
         ThrowableAnticipator ta = new ThrowableAnticipator();
         ta.anticipate(new Exception("Some exception that complains about bogus data"));
         try {
@@ -345,7 +339,7 @@ public class Rrd4JRrdStrategyTest {
         }
         ta.verifyAnticipated();
     }
-    
+
     @Test
     public void testCommentWithNewlines() throws Exception {
         long end = System.currentTimeMillis();
@@ -365,18 +359,18 @@ public class Rrd4JRrdStrategyTest {
         RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
         RrdGraph graph = new RrdGraph(graphDef);
         assertNotNull("graph object", graph);
-        
+
         int firstHeight = graph.getRrdGraphInfo().getHeight();
 
         RrdGraphDef graphDef2 = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command2);
         RrdGraph graph2 = new RrdGraph(graphDef2);
         assertNotNull("second graph object", graph2);
-        
+
         int secondHeight = graph2.getRrdGraphInfo().getHeight();
 
         assertFalse("first graph height " + firstHeight + " and second graph height " + secondHeight + " should not be equal... there should be another newline in the second one making it taller", firstHeight == secondHeight);
     }
-    
+
     @Test
     public void testGprintWithNewlines() throws Exception {
         long end = System.currentTimeMillis();
@@ -399,21 +393,21 @@ public class Rrd4JRrdStrategyTest {
         RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
         RrdGraph graph = new RrdGraph(graphDef);
         assertNotNull("graph object", graph);
-        
+
         int firstHeight = graph.getRrdGraphInfo().getHeight();
 
         RrdGraphDef graphDef2 = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command2);
         RrdGraph graph2 = new RrdGraph(graphDef2);
         assertNotNull("second graph object", graph2);
-        
+
         int secondHeight = graph2.getRrdGraphInfo().getHeight();
-        
+
         System.out.println(Arrays.toString(graph.getRrdGraphInfo().getPrintLines()));
         System.out.println(Arrays.toString(graph2.getRrdGraphInfo().getPrintLines()));
 
         assertFalse("first graph height " + firstHeight + " and second graph height " + secondHeight + " should not be equal... there should be another line with a newline in the second one making it taller", firstHeight == secondHeight);
     }
-    
+
     @Test
     public void testPrint() throws Exception {
         long end = System.currentTimeMillis();
@@ -428,16 +422,16 @@ public class Rrd4JRrdStrategyTest {
         RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
         RrdGraph graph = new RrdGraph(graphDef);
         assertNotNull("graph object", graph);
-        
+
         RrdGraphInfo info = graph.getRrdGraphInfo();
         assertNotNull("graph info object", info);
-        
+
         String[] printLines = info.getPrintLines();
         assertNotNull("graph printLines", printLines);
         assertEquals("graph printLines size", 1, printLines.length);
         assertEquals("graph printLines item 0", "\"1.000000e+00\"", printLines[0]);
     }
-    
+
 
     @Test
     public void testPrintThroughInterface() throws Exception {
@@ -452,46 +446,46 @@ public class Rrd4JRrdStrategyTest {
 
         RrdGraphDetails graphDetails = m_strategy.createGraphReturnDetails(StringUtils.arrayToDelimitedString(command, " "), new File(""));
         assertNotNull("graph details object", graphDetails);
-        
+
         String[] printLines = graphDetails.getPrintLines();
         assertNotNull("graph printLines", printLines);
         assertEquals("graph printLines size", 1, printLines.length);
         assertEquals("graph printLines item 0", "\"1.000000e+00\"", printLines[0]);
     }
-    
+
     @Test
     public void testTWQnENoQNoE() throws Exception {
-    	String input = "This string has no quoting and no escapes";
-    	String[] expected = new String[] { "This", "string", "has", "no", "quoting", "and", "no", "escapes" }; 
-    	String[] actual = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(input, " ", false, "");
-    	assertEquals(Arrays.asList(expected), Arrays.asList(actual));
+        String input = "This string has no quoting and no escapes";
+        String[] expected = new String[] { "This", "string", "has", "no", "quoting", "and", "no", "escapes" }; 
+        String[] actual = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(input, " ", false, "");
+        assertEquals(Arrays.asList(expected), Arrays.asList(actual));
     }
-    
+
     @Test
     public void testTWQnENoQNoEWithDEFUnix() throws Exception {
-    	if (File.separatorChar != '/') {
-    		MockUtil.println("-------- Skipping testTWQnENoQNoEWithDEFUnix since File.separator is not / ------------");
-    		MockUtil.println("-------- Be sure to run the tests on Unix too! ---------");
-    		return;
-    	}
-    	String input = "No quote, no escapes, but DEF:test=snmp/42/test.jrb:test:AVERAGE";
-    	String[] expected = new String[] { "No", "quote,", "no", "escapes,", "but", "DEF:test=snmp/42/test.jrb:test:AVERAGE" }; 
-    	String[] actual = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(input, " ", false, "");
-    	assertEquals(Arrays.asList(expected), Arrays.asList(actual));
+        if (File.separatorChar != '/') {
+            MockUtil.println("-------- Skipping testTWQnENoQNoEWithDEFUnix since File.separator is not / ------------");
+            MockUtil.println("-------- Be sure to run the tests on Unix too! ---------");
+            return;
+        }
+        String input = "No quote, no escapes, but DEF:test=snmp/42/test.jrb:test:AVERAGE";
+        String[] expected = new String[] { "No", "quote,", "no", "escapes,", "but", "DEF:test=snmp/42/test.jrb:test:AVERAGE" }; 
+        String[] actual = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(input, " ", false, "");
+        assertEquals(Arrays.asList(expected), Arrays.asList(actual));
     }
-    
+
     @Test
     public void testTWQnENoQNoEWithDEFWindows() throws Exception {
-    	// This test case inspired by bug #2223
-    	if (File.separatorChar != '\\') {
-    		MockUtil.println("-------- Skipping testTWQnENoQNoEWithDEFWindows since File.separator is not \\ ------------");
-    		MockUtil.println("-------- Be sure to run the tests on Windows too! ---------");
-    		return;
-    	}
-    	String input = "No quote, no escapes, but DEF:test=snmp\\42\\test.jrb:test:AVERAGE";
-    	String[] expected = new String[] { "No", "quote,", "no", "escapes,", "but", "DEF:test=snmp\\42\\test.jrb:test:AVERAGE" }; 
-    	String[] actual = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(input, " ", false, "");
-    	assertEquals(Arrays.asList(expected), Arrays.asList(actual));
+        // This test case inspired by bug #2223
+        if (File.separatorChar != '\\') {
+            MockUtil.println("-------- Skipping testTWQnENoQNoEWithDEFWindows since File.separator is not \\ ------------");
+            MockUtil.println("-------- Be sure to run the tests on Windows too! ---------");
+            return;
+        }
+        String input = "No quote, no escapes, but DEF:test=snmp\\42\\test.jrb:test:AVERAGE";
+        String[] expected = new String[] { "No", "quote,", "no", "escapes,", "but", "DEF:test=snmp\\42\\test.jrb:test:AVERAGE" }; 
+        String[] actual = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(input, " ", false, "");
+        assertEquals(Arrays.asList(expected), Arrays.asList(actual));
     }
 
     @Test
@@ -532,19 +526,19 @@ public class Rrd4JRrdStrategyTest {
         assertNull(infos.args[2]);
     }
 
-   public File createRrdFile() throws Exception {
+    public File createRrdFile() throws Exception {
         String rrdFileBase = "foo";
 
         m_fileAnticipator.initialize();
         String rrdExtension = ".rrd" ; //RrdUtils.getExtension();
-        
+
         List<RrdDataSource> dataSources = new ArrayList<RrdDataSource>();
         dataSources.add(new RrdDataSource("bar", "GAUGE", 3000, "U", "U"));
         List<String> rraList = new ArrayList<String>();
         rraList.add("RRA:AVERAGE:0.5:1:2016");
         RrdDef def = m_strategy.createDefinition("hello!", m_fileAnticipator.getTempDir().getAbsolutePath(), rrdFileBase, 300, dataSources, rraList);
         m_strategy.createFile(def, null);
-        
+
         return m_fileAnticipator.expecting(rrdFileBase + rrdExtension);
     }
 }
