@@ -466,7 +466,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     }
 
     GraphDefInformations parseGraphDefElement(String line, int countArgs, boolean isData) {
-        String[] token = colonSplit(line);
+        String[] token = tokenize(line, ":", true);
         GraphDefInformations info = new GraphDefInformations();
         info.type = token[0];
         info.name = null;
@@ -815,7 +815,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             // LOG.debug("windows");
             // Windows, make sure the beginning isn't eg: C:\\foo\\bar
             if (definition.matches("[^=]*=[a-zA-Z]:.*")) {
-                final String[] tempDef = colonSplit(definition);
+                final String[] tempDef = tokenize(definition, ":", true);
                 def = new String[tempDef.length - 1];
                 def[0] = tempDef[0] + ':' + tempDef[1];
                 if (tempDef.length > 2) {
@@ -825,18 +825,18 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 }
             } else {
                 // LOG.debug("no match");
-                def = colonSplit(definition);
+                def = tokenize(definition, ":", true);
             }
         } else {
-            def = colonSplit(definition);
+            def = tokenize(definition, ":", true);
         }
         // LOG.debug("returning: {}", Arrays.toString(def));
         return def;
     }
 
     private void processRrdFontArgument(RrdGraphDef graphDef, String argParm) {
-        String[] argValue = colonSplit(argParm);
-        int newPointSize = stringToType(argValue[1], 0);
+        String[] argValue = tokenize(argParm, ":", true);
+        float newPointSize = stringToType(argValue[1], 0f);
         FontTag ft = FontTag.valueOf(argValue[0]);
         if(argValue.length == 2 || argValue[2].trim().isEmpty()) {
             graphDef.setFont(ft, graphDef.getFont(ft).deriveFont(newPointSize));            
@@ -844,7 +844,8 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             try {
                 Font font;
                 if(FONTS.contains(argValue[2])) {
-                    font = new Font(argValue[2], Font.PLAIN, newPointSize);
+                    //derive take float, constructor an int
+                    font = new Font(argValue[2], Font.PLAIN, 1).deriveFont(newPointSize);
                 }
                 else {
                     font = Font.createFont(Font.TRUETYPE_FONT, new File(argValue[2]));
@@ -864,7 +865,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
     /**
      * @param colorArg Should have the form COLORTAG#RRGGBB[AA]
-     * @see http://www.jrobin.org/support/man/rrdgraph.html
+     * @see http://oss.oetiker.ch/rrdtool/doc/rrdgraph.en.html
      */
     private void parseGraphColor(final RrdGraphDef graphDef, final String colorArg) throws IllegalArgumentException {
         // Parse for format COLORTAG#RRGGBB[AA]
@@ -1091,12 +1092,13 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             graphDef.setDrawYGrid(false);
             return;
         }
-        String[] tokens = colonSplit(gridString);
+        String[] tokens = tokenize(gridString, ":", true);
         if (tokens.length != 2) {
             throw new IllegalArgumentException("Invalid YGRID settings: " + gridString);
         }
         double gridStep = stringToType(tokens[0], Double.NaN);
-        int labelFactor = stringToType(tokens[1], Integer.MIN_VALUE);
+        int labelFactor = stringToType(tokens[1], (Integer) null);
+        graphDef.setValueAxis(gridStep, labelFactor);
     }
 
     private void parseXGrid(RrdGraphDef graphDef, String gridString) {
@@ -1104,7 +1106,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             graphDef.setDrawXGrid(false);
             return;
         }
-        String[] tokens = colonSplit(gridString);
+        String[] tokens = tokenize(gridString, ":", true);
         if (tokens.length != 8) {
             throw new IllegalArgumentException("Invalid XGRID settings: " + gridString);
         }
@@ -1130,36 +1132,5 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         }
         throw new IllegalArgumentException("Unknown time unit specified: " + unitName);
     }
-
-    private String[] colonSplit(String cmd) {
-        // or String[] tempDef = definition.split("(?<!\\\\):");
-        int cmdLength = cmd.length();
-        char[] content = cmd.toCharArray();
-        int[] poses = new int[cmdLength];
-        int pos = 0;
-        poses[0] = 0;
-        for( int i = 0; i < cmdLength ; i++) {
-            if(content[i] == '\\') {
-                i++;
-            }
-            else if(content[i] == ':'){
-                poses[++pos] = i + 1;
-            }
-        }
-        poses[++pos] = cmdLength;
-        String[] tokens = new String[pos];
-        for( int i = 0 ; i < pos - 1; i++) {
-            tokens[i] = new String(content, poses[i], poses[ i + 1] - poses[i] - 1);
-        }
-        //Last token
-        if(poses[pos - 1] == cmdLength) {
-            tokens[pos - 1] = "";
-        }
-        else {
-            tokens[pos - 1] = new String(content, poses[pos - 1], poses[pos] - poses[pos - 1]);
-        }
-        return tokens;
-    }
-
 
 }

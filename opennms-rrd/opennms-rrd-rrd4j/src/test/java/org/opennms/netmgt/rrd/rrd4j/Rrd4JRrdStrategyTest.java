@@ -34,6 +34,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +59,7 @@ import org.rrd4j.core.RrdDb;
 import org.rrd4j.core.RrdDef;
 import org.rrd4j.core.Sample;
 import org.rrd4j.graph.RrdGraph;
+import org.rrd4j.graph.RrdGraphConstants.FontTag;
 import org.rrd4j.graph.RrdGraphDef;
 import org.rrd4j.graph.RrdGraphInfo;
 import org.springframework.util.StringUtils;
@@ -287,9 +290,9 @@ public class Rrd4JRrdStrategyTest {
         assertEquals("graph printLines - CDEF item 0", "1.649453e+05", printLines[0]);
         assertEquals("graph printLines - CDEF item 1", "3.900000e+01", printLines[1]);
         assertEquals("graph printLines - CDEF item 2", "1.600000e+07", printLines[2]);
-        assertEquals("graph printLines - CDEF item 3", "9.896721e+09", printLines[3]);
-        assertEquals("graph printLines - CDEF item 4", "9.574000e+03", printLines[4]);
-        assertEquals("graph printLines - CDEF item 5", "9.574000e+03", printLines[5]);
+        assertEquals("graph printLines - CDEF item 3", "\"9.896721e+09\"", printLines[3]);
+        assertEquals("graph printLines - CDEF item 4", "\"9.574000e+03\"", printLines[4]);
+        assertEquals("graph printLines - CDEF item 5", "\"9.574000e+03\"", printLines[5]);
 
     }
 
@@ -379,15 +382,15 @@ public class Rrd4JRrdStrategyTest {
                 "--start=" + start,
                 "--end=" + end,
                 "CDEF:a=1",
-                "GPRINT:a:AVERAGE:\"%8.2lf\n\""
+                "GPRINT:a:AVERAGE:\"%8.2lf\\l\""
         };
         String[] command2 = new String[] {
                 "--start=" + start,
                 "--end=" + end,
                 "CDEF:a=1",
                 "CDEF:b=1",
-                "GPRINT:a:AVERAGE:\"%8.2lf\n\"",
-                "GPRINT:b:AVERAGE:\"%8.2lf\n\""
+                "GPRINT:a:AVERAGE:\"%8.2lf\\l\"",
+                "GPRINT:b:AVERAGE:\"%8.2lf\\l\""
         };
 
         RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
@@ -429,7 +432,7 @@ public class Rrd4JRrdStrategyTest {
         String[] printLines = info.getPrintLines();
         assertNotNull("graph printLines", printLines);
         assertEquals("graph printLines size", 1, printLines.length);
-        assertEquals("graph printLines item 0", "\"1.000000e+00\"", printLines[0]);
+        assertEquals("graph printLines item 0", "1.000000e+00", printLines[0]);
     }
 
 
@@ -450,7 +453,7 @@ public class Rrd4JRrdStrategyTest {
         String[] printLines = graphDetails.getPrintLines();
         assertNotNull("graph printLines", printLines);
         assertEquals("graph printLines size", 1, printLines.length);
-        assertEquals("graph printLines item 0", "\"1.000000e+00\"", printLines[0]);
+        assertEquals("graph printLines item 0", "1.000000e+00", printLines[0]);
     }
 
     @Test
@@ -513,7 +516,7 @@ public class Rrd4JRrdStrategyTest {
         assertNull(infos.name);
         assertEquals("nfp", infos.args[0]);
         assertEquals("AVERAGE", infos.args[1]);
-        assertEquals("\"%le\"", infos.args[2]);
+        assertEquals("%le", infos.args[2]);
     }
 
     @Test
@@ -522,8 +525,40 @@ public class Rrd4JRrdStrategyTest {
         assertEquals("PRINT", infos.type);
         assertNull(infos.name);
         assertEquals("nfp", infos.args[0]);
-        assertEquals("\"%le\"", infos.args[1]);
+        assertEquals("%le", infos.args[1]);
         assertNull(infos.args[2]);
+    }
+
+    @Test
+    public void parseFont() throws IOException {
+        System.out.println(Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+        long end = System.currentTimeMillis();
+        long start = end - (24 * 60 * 60 * 1000);
+        String[] command = new String[] {
+                "--start=" + start,
+                "--end=" + end,
+                "--font=TITLE:18",
+        };
+
+        RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
+
+        assertEquals("Default font size", 18, graphDef.getFont(FontTag.TITLE).getSize());
+    }
+
+    @Test
+    public void parseFontWithName() throws IOException {
+        long end = System.currentTimeMillis();
+        long start = end - (24 * 60 * 60 * 1000);
+        String[] command = new String[] {
+                "--start=" + start,
+                "--end=" + end,
+                "--font=TITLE:18:" + Font.SANS_SERIF,
+        };
+
+        RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
+
+        assertEquals("Default font size", 18, graphDef.getFont(FontTag.TITLE).getSize());
+        assertEquals("Default font name", Font.SANS_SERIF, graphDef.getFont(FontTag.TITLE).getFontName());
     }
 
     public File createRrdFile() throws Exception {
