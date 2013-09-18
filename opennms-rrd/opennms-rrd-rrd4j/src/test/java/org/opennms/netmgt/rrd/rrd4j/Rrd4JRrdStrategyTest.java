@@ -251,10 +251,15 @@ public class Rrd4JRrdStrategyTest {
         printLines = info.getPrintLines();
         assertNotNull("graph printLines - DEF", printLines);
         assertEquals("graph printLines - DEF size", 5, printLines.length);
+        // rrdtool says average is 1.649453e+05
         assertEquals("graph printLines - DEF item 0", "1.649453e+05", printLines[0]);
+        // rrdtool says min is 3.900000e+01
         assertEquals("graph printLines - DEF item 1", "3.900000e+01", printLines[1]);
+        // rrdtool says max is 1.600000e+07
         assertEquals("graph printLines - DEF item 2", "1.600000e+07", printLines[2]);
+        // rrdtool says total is 9.896721e+09
         assertEquals("graph printLines - DEF item 3", "9.896721e+09", printLines[3]);
+        // rrdtool says 95-th percentile is 9.574000e+03
         assertEquals("graph printLines - DEF item 4", "9.574000e+03", printLines[4]);
 
         // Now do it with a CDEF
@@ -287,13 +292,18 @@ public class Rrd4JRrdStrategyTest {
         printLines = info.getPrintLines();
         assertNotNull("graph printLines - CDEF", printLines);
         assertEquals("graph printLines - CDEF size", 6, printLines.length);
+        // rrdtool says 1.649453e+05
         assertEquals("graph printLines - CDEF item 0", "1.649453e+05", printLines[0]);
+        // rrdtool says 3.900000e+01 
         assertEquals("graph printLines - CDEF item 1", "3.900000e+01", printLines[1]);
+        // rrdtool says 1.600000e+07
         assertEquals("graph printLines - CDEF item 2", "1.600000e+07", printLines[2]);
-        assertEquals("graph printLines - CDEF item 3", "\"9.896721e+09\"", printLines[3]);
-        assertEquals("graph printLines - CDEF item 4", "\"9.574000e+03\"", printLines[4]);
-        assertEquals("graph printLines - CDEF item 5", "\"9.574000e+03\"", printLines[5]);
-
+        // rrdtool says 9.896721e+09
+        assertEquals("graph printLines - CDEF item 3", "9.896721e+09", printLines[3]);
+        // rrdtool says 9.574000e+03
+        assertEquals("graph printLines - CDEF item 4", "9.574000e+03", printLines[4]);
+        // rrdtool says 9.574000e+03
+        assertEquals("graph printLines - CDEF item 5", "9.574000e+03", printLines[5]);
     }
 
     /**
