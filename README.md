@@ -3,6 +3,8 @@
 
 Welcome to a fork of OpenNMS that adds a new RRD strategy : org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy. It uses [Rrd4J][] as a rrd store, that is both faster and closer to rrdtool than jrobin.
 
+The source code to this strategy is at `opennms-rrd/opennms-rrd-rrd4j` in the source tree.
+
 To use it, edit the rrd-configuration.xml, in the properties list change the value of `org.opennms.rrd.strategyClass` to `org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy` and 
 `org.opennms.rrd.usetcp` to `false`.
 
