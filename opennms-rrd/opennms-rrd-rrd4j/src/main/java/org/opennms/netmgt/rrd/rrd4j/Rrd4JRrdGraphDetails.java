@@ -56,7 +56,7 @@ public class Rrd4JRrdGraphDetails implements RrdGraphDetails {
     /**
      * <p>Constructor for JRobinRrdGraphDetails.</p>
      *
-     * @param rrdGraph a {@link org.jrobin.graph.RrdGraph} object.
+     * @param rrdGraph a {@link org.rrd4j.graph.RrdGraph} object.
      * @param graphCommand a {@link java.lang.String} object.
      */
     public Rrd4JRrdGraphDetails(RrdGraph rrdGraph, String graphCommand) {
@@ -67,7 +67,7 @@ public class Rrd4JRrdGraphDetails implements RrdGraphDetails {
     /**
      * <p>getRrdGraph</p>
      *
-     * @return a {@link org.jrobin.graph.RrdGraph} object.
+     * @return a {@link org.rrd4j.graph.RrdGraph} object.
      */
     public RrdGraph getRrdGraph() {
         return m_rrdGraph;

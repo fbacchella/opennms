@@ -77,7 +77,7 @@ import org.slf4j.LoggerFactory;
  * open)
  *
  * @author ranger
- * @version $Id: $
+ * @author Fabrice Bacchella
  */
 public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     private static final Logger LOG = LoggerFactory.getLogger(Rrd4JRrdStrategy.class);
@@ -163,7 +163,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     /**
      * Closes the RRD4J RrdDb.
      *
-     * @param rrdFile a {@link org.jrobin.core.RrdDb} object.
+     * @param rrdFile a {@link org.rrd4j.core.RrdDb} object.
      * @throws java.lang.Exception if any.
      */
     @Override
@@ -218,9 +218,9 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
     /**
      * Creates the RRD4J RrdDb from the def by opening the file and then
-     * closing.
+     * closing it.
      *
-     * @param rrdDef a {@link org.jrobin.core.RrdDef} object.
+     * @param rrdDef a {@link org.rrd4j.core.RrdDef} object.
      * @throws java.lang.Exception if any.
      */
     @Override
@@ -258,7 +258,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     /**
      * {@inheritDoc}
      *
-     * Creates a sample from the JRobin RrdDb and passes in the data provided.
+     * Creates a sample from the RRD4J RrdDb and passes in the data provided.
      */
     @Override
     public void updateFile(final RrdDb rrdFile, final String owner, final String data) throws Exception {
@@ -426,7 +426,9 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         }
     }
 
-    /** {@inheritDoc} */
+    /** {@inheritDoc} 
+     * Does nothing, this strategy doesn't queue.
+     * */
     @Override
     public void promoteEnqueuedFiles(Collection<String> rrdFiles) {
         // no need to do anything since this strategy doesn't queue
@@ -493,19 +495,21 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     }
 
     /**
-     * Parse a graph element, it expect a string formated as: <p>
+     * Parse a definition element.
+     * 
+     * It expect a string formated as: <p>
      * type:[name=]arg1[:arg]+[:option[=.]*]*<p>
      * It fills a {@link GraphDefInformations} object with
-     * <code>
+     * <pre>
      * GraphDefInformations.type = type
      * GraphDefInformations.name = a optional name extracted form arg1
      * GraphDefInformations.args = a String[] of the mandatory args
      * GraphDefInformations.opts = a Map of the options and their values 
-     * </code>
-     * @param line
-     * @param countArgs
-     * @param isData
-     * @return
+     * </pre>
+     * @param line The line to parse
+     * @param countArgs the expected number or arguments, all other elements will be options
+     * @param isData if true, arg0 is name=arg0
+     * @return information parsed from the definition line
      */
     GraphDefInformations parseGraphDefElement(String line, int countArgs, boolean isData) {
         String[] token = tokenize(line, ":", true);
@@ -545,9 +549,8 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
      * <p>createGraphDef</p>
      *
      * @param workDir a {@link java.io.File} object.
-     * @param commandArray an array of {@link java.lang.String} objects.
-     * @return a {@link org.jrobin.graph.RrdGraphDef} object.
-     * @throws org.jrobin.core.RrdException if any.
+     * @param inputArray an array of {@link java.lang.String} objects.
+     * @return a {@link org.rrd4j.graph.RrdGraphDef} object.
      */
     protected RrdGraphDef createGraphDef(final File workDir, final String[] inputArray) {
         RrdGraphDef graphDef = new RrdGraphDef();
@@ -757,7 +760,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             } else if (arg.startsWith("VDEF:")) {
                 GraphDefInformations infos = parseGraphDefElement(arg, 1, true);
                 String[] expressionTokens = tokenize(infos.args[0], ",", false);
-                addVdefDs(graphDef, infos.name, expressionTokens, start, end, defs);
+                addVdefDs(graphDef, infos.name, expressionTokens);
             } else if (arg.startsWith("CDEF:")) {
                 GraphDefInformations infos = parseGraphDefElement(arg, 1, true);
                 graphDef.datasource(infos.name, infos.args[0]);
@@ -841,7 +844,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
     /**
      * @param colorArg Should have the form COLORTAG#RRGGBB[AA]
-     * @see http://oss.oetiker.ch/rrdtool/doc/rrdgraph.en.html
+     * @see <a href="http://oss.oetiker.ch/rrdtool/doc/rrdgraph.en.html">rrdgraph man page</a> 
      */
     private void parseGraphColor(final RrdGraphDef graphDef, final String colorArg) throws IllegalArgumentException {
         // Parse for format COLORTAG#RRGGBB[AA]
@@ -1053,7 +1056,13 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         }
     }
 
-    protected void addVdefDs(RrdGraphDef graphDef, String sourceName, String[] rhs, double start, double end, Map<String,List<String>> defs) {
+    /**
+     * Add a VDEF.
+     * @param graphDef the current graphdef
+     * @param sourceName the name of the VDEF 
+     * @param rhs the RPN expression splitted in tokens
+     */
+    protected void addVdefDs(RrdGraphDef graphDef, String sourceName, String[] rhs) {
         if (rhs.length == 2) {
             try {
                 Variable v = VDEFOPERATORS.get(rhs[1]).newInstance();
@@ -1156,7 +1165,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             String dashOffsetCmd = infos.opts.get("dashe-offset");
             float[] dashes;
             if( ! dashesCmd.trim().isEmpty()) {
-                String[] dashesElements = dashesCmd.split(",");
+                String[] dashesElements = tokenize(dashesCmd, ",", false);
                 dashes = new float[dashesElements.length];
                 for(int i= 0; i < dashesElements.length; i++) {
                     dashes[i] = stringToType(dashesElements[i], (Float) null);
