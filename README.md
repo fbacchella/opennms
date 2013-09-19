@@ -1,6 +1,23 @@
 [OpenNMS][]
 ===========
 
+Welcome to a fork of OpenNMS that adds a new RRD strategy : org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy. It uses [Rrd4J][] as a rrd store, that is both faster and closer to rrdtool than jrobin.
+
+To use it, edit the rrd-configuration.xml, in the properties list change the value of `org.opennms.rrd.strategyClass` to `org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy` and 
+`org.opennms.rrd.usetcp` to `false`.
+
+The RRD version can also be set with `org.rrd4j.core.RrdBackendFactory`. 1 is the old version, compatible with jrobin. 2 is a new and faster one.
+
+```...
+<property name="properties">
+    <props>
+		    <!-- General configuration -->
+				<prop key="org.opennms.rrd.strategyClass">org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy</prop>
+				<prop key="org.opennms.rrd.usequeue">true</prop>
+				<prop key="org.opennms.rrd.usetcp">false</prop>
+				<prop key="org.rrd4j.core.RrdBackendFactory">2</prop>
+...
+```
 [OpenNMS][] is the world's first enterprise grade network management application platform developed under the open source model.
 
 Well, what does that mean?
@@ -39,3 +56,4 @@ If you are using Eclipse, please read the [Eclipse][] page for details on settin
 [OCA]:              http://www.opennms.org/wiki/OCA
 [Eclipse]:          http://www.opennms.org/wiki/Eclipse
 [Building_OpenNMS]: http://www.opennms.org/wiki/Building_OpenNMS
+[Rrd4J]:						https://code.google.com/p/rrd4j/
