@@ -65,7 +65,7 @@ import org.rrd4j.graph.RrdGraphInfo;
 import org.springframework.util.StringUtils;
 
 /**
- * Unit tests for the JrobinRrdStrategy.
+ * Unit tests for the Rrd4jRrdStrategy.
  * 
  * @author <a href="mailto:dj@opennms.org">DJ Gregor</a>
  */

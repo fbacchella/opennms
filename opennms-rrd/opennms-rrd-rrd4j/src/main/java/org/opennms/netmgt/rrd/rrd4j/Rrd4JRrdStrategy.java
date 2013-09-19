@@ -28,6 +28,7 @@
 
 package org.opennms.netmgt.rrd.rrd4j;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
@@ -83,15 +84,36 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     private static final String BACKEND_FACTORY_PROPERTY = "org.rrd4j.core.RrdBackendFactory";
     private static final String DEFAULT_BACKEND_FACTORY = "FILE";
     private static final String VERSION_PROPERTY = "org.rrd4j.core.RrdVersion";
+    // The default RRD version, should be 2 for faster IO, but not compatible with jrobin
     private static final int DEFAULT_VERSION = 1;
     private static final Set<String> COLORNAMES = new HashSet<String>(RrdGraphConstants.COLOR_NAMES.length);
     private static final String FLOATINGPOINTPATTERN = "[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?";  // see http://www.regular-expressions.info/floatingpoint.html, removed the [+-]?
     private static final Pattern LINEPATTERN = Pattern.compile("LINE(" + FLOATINGPOINTPATTERN + "):");
+    // A set of fonts know by the VM
     private static final Set<String> FONTS = new HashSet<String>();
+    // Map VDEF string to variable class that will be instanciated
+    private static final Map<String, Class< ? extends Variable>> VDEFOPERATORS = new HashMap<String, Class< ? extends Variable>>();
+    // A default stroke, used to extract cap, join and miterlimit default values
+    private static final BasicStroke DEFAULTSTROKE = new BasicStroke();
 
     static {
+        // Fill with the color list from RRD4J
         COLORNAMES.addAll(Arrays.asList(RrdGraphConstants.COLOR_NAMES));
+        
+        // Fill with the know fonts
         FONTS.addAll(Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+        
+        // Fill the variables names
+        VDEFOPERATORS.put("MAXIMUM", Variable.MAX.class);
+        VDEFOPERATORS.put("MINIMUM", Variable.MIN.class);
+        VDEFOPERATORS.put("AVERAGE", Variable.AVERAGE.class);
+        VDEFOPERATORS.put("STDEV", Variable.STDDEV.class);
+        VDEFOPERATORS.put("LAST", Variable.LAST.class);
+        VDEFOPERATORS.put("FIRST", Variable.FIRST.class);
+        VDEFOPERATORS.put("TOTAL", Variable.TOTAL.class);
+        VDEFOPERATORS.put("LSLSLOPE", Variable.LSLSLOPE.class);
+        VDEFOPERATORS.put("LSLINT", Variable.LSLINT.class);
+        VDEFOPERATORS.put("LSLCORREL", Variable.LSLCORREL.class);
     }
 
     final class GraphDefInformations {
@@ -313,7 +335,6 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             long[] times = data.getTimestamps();
 
             // step backwards through the array of values until we get something that's a number
-
             for(int i = vals.length - 1; i >= 0; i--) {
                 if ( Double.isNaN(vals[i]) ) {
                     LOG.debug("fetchInRange: Got a NaN value at interval: {} continuing back in time", times[i]);
@@ -411,6 +432,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         // no need to do anything since this strategy doesn't queue
     }
 
+    @SuppressWarnings("null")
     private <ArgClass> ArgClass stringToType(String arg, ArgClass defaultVal) {
         try {
             @SuppressWarnings("unchecked")
@@ -419,7 +441,12 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             ArgClass n = c.newInstance(arg);
             return n;
         } catch (Exception e) {
-            throw new IllegalArgumentException("can't parse " + arg + " to " + defaultVal.getClass().getSimpleName());
+            if(defaultVal != null) {
+                return defaultVal;
+
+            } else {
+                throw new IllegalArgumentException("can't parse " + arg + " to " + defaultVal.getClass().getSimpleName());
+            }
         }        
     }
 
@@ -465,6 +492,21 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         return arg;
     }
 
+    /**
+     * Parse a graph element, it expect a string formated as: <p>
+     * type:[name=]arg1[:arg]+[:option[=.]*]*<p>
+     * It fills a {@link GraphDefInformations} object with
+     * <code>
+     * GraphDefInformations.type = type
+     * GraphDefInformations.name = a optional name extracted form arg1
+     * GraphDefInformations.args = a String[] of the mandatory args
+     * GraphDefInformations.opts = a Map of the options and their values 
+     * </code>
+     * @param line
+     * @param countArgs
+     * @param isData
+     * @return
+     */
     GraphDefInformations parseGraphDefElement(String line, int countArgs, boolean isData) {
         String[] token = tokenize(line, ":", true);
         GraphDefInformations info = new GraphDefInformations();
@@ -723,51 +765,13 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 cdefBits.add(infos.args[0]);
                 defs.put(infos.name, cdefBits);
             } else if (arg.startsWith("GPRINT:") || arg.startsWith("PRINT:") ) {
-                GraphDefInformations infos = parseGraphDefElement(arg, 3, false);
-                String srcName = infos.args[0];
-                String format;
-                ConsolFun cf = null;
-                if(infos.args[2] != null) {
-                    cf = ConsolFun.valueOf(infos.args[1]);
-                    format = infos.args[2];
-                }
-                else {
-                    format = infos.args[1];
-                }
-                format = format.replaceAll("%(\\d*\\.\\d*)lf", "@$1");
-                format = format.replaceAll("%s", "@s");
-                format = format.replaceAll("%%", "%");
-                //LOG.debug("gprint: oldformat = {} newformat = {}", gprint[2], format);
-                format = format.replaceAll("\\n", "\\\\l");
-                if(cf != null) {
-                    if("GPRINT".equals(infos.type)) {
-                        graphDef.gprint(srcName, cf, format);                                            
-                    }
-                    else {
-                        graphDef.print(srcName, cf, format);                    
-                    }
-                } else {
-                    if("GPRINT".equals(infos.type)) {
-                        graphDef.gprint(srcName, format);                    
-                    }
-                    else {
-                        graphDef.print(srcName, format);                    
-                    }
-                }
+                doPrint(graphDef, arg);
             } else if (arg.startsWith("COMMENT:")) {
                 String comments[] = tokenize(arg, ":", false);
                 String format = comments[1].replaceAll("\\n", "\\\\l");
                 graphDef.comment(format);
             } else if (LINEPATTERN.matcher(arg).find()) {
-                GraphDefInformations infos = parseGraphDefElement(arg, 2, true);
-                float lineWidth = stringToType(infos.type.substring(4), Float.NaN).floatValue();
-                boolean stack = false;
-                if(infos.opts.containsKey("STACK"))
-                    stack = true;
-                String dashes = infos.opts.get("dashes");
-                String dashOffset = infos.opts.get("dashe-offset");
-                String[] color = tokenize(infos.args[0], "#", true);
-                graphDef.line(color[0], getColorOrInvisible(color, 1), infos.args[1] != null ? infos.args[1] : "", lineWidth, stack);
+                doLine(graphDef, arg);
             } else if (arg.startsWith("AREA:")) {
                 GraphDefInformations infos = parseGraphDefElement(arg, 2, true);
                 boolean stack = false;
@@ -800,38 +804,10 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         graphDef.setRigid(rigid);
         graphDef.setHeight(height);
         graphDef.setWidth(width);
-        // graphDef.setSmallFont(new Font("Monospaced", Font.PLAIN, 10));
-        // graphDef.setLargeFont(new Font("Monospaced", Font.PLAIN, 12));
 
         LOG.debug("RRD4J Finished tokenizing checking: start time: {}, end time: {}", start, end);
         //LOG.debug("large font = {}, small font = {}", graphDef.getLargeFont(), graphDef.getSmallFont());
         return graphDef;
-    }
-
-    private String[] splitDef(final String definition) {
-        // LOG.debug("splitDef({})", definition);
-        final String[] def;
-        if (File.separatorChar == '\\') {
-            // LOG.debug("windows");
-            // Windows, make sure the beginning isn't eg: C:\\foo\\bar
-            if (definition.matches("[^=]*=[a-zA-Z]:.*")) {
-                final String[] tempDef = tokenize(definition, ":", true);
-                def = new String[tempDef.length - 1];
-                def[0] = tempDef[0] + ':' + tempDef[1];
-                if (tempDef.length > 2) {
-                    for (int i = 2; i < tempDef.length; i++) {
-                        def[i-1] = tempDef[i];
-                    }
-                }
-            } else {
-                // LOG.debug("no match");
-                def = tokenize(definition, ":", true);
-            }
-        } else {
-            def = tokenize(definition, ":", true);
-        }
-        // LOG.debug("returning: {}", Arrays.toString(def));
-        return def;
     }
 
     private void processRrdFontArgument(RrdGraphDef graphDef, String argParm) {
@@ -859,7 +835,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     }
 
     private String[] tokenize(final String line, final String delimiters, final boolean processQuotes) {
-        String passthroughTokens = "lcrjgsJ"; /* see org.rrd4J.graph.RrdGraphConstants.MARKERS */
+        String passthroughTokens = "lLcrjgsJ"; /* see org.rrd4J.graph.RrdGraphConstants.MARKERS */
         return tokenizeWithQuotingAndEscapes(line, delimiters, processQuotes, passthroughTokens);
     }
 
@@ -1079,10 +1055,19 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
 
     protected void addVdefDs(RrdGraphDef graphDef, String sourceName, String[] rhs, double start, double end, Map<String,List<String>> defs) {
         if (rhs.length == 2) {
-            graphDef.datasource(sourceName, rhs[0], ConsolFun.valueOf(rhs[1]).getVariable());
+            try {
+                Variable v = VDEFOPERATORS.get(rhs[1]).newInstance();
+                graphDef.datasource(sourceName, rhs[0], v);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid VDEF operator: " + rhs[1]);
+            }
         } else if (rhs.length == 3 && "PERCENT".equals(rhs[2])) {
             double pctRank = Double.valueOf(rhs[1]);
             Variable var = new Variable.PERCENTILE(pctRank);
+            graphDef.datasource(sourceName, rhs[0], var);
+        } else if (rhs.length == 3 && "PERCENTNAN".equals(rhs[2])) {
+            double pctRank = Double.valueOf(rhs[1]);
+            Variable var = new Variable.PERCENTILENAN(pctRank);
             graphDef.datasource(sourceName, rhs[0], var);
         }
     }
@@ -1120,6 +1105,73 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         String fmt = tokens[7];
         graphDef.setTimeAxis(minorUnit, minorUnitCount, majorUnit, majorUnitCount,
                 labelUnit, labelUnitCount, labelSpan, fmt);
+    }
+    
+    @SuppressWarnings("deprecation")
+    private void doPrint(RrdGraphDef graphDef, String printString) {
+        GraphDefInformations infos = parseGraphDefElement(printString, 3, false);
+        String srcName = infos.args[0];
+        String format;
+        ConsolFun cf = null;
+        if(infos.args[2] != null) {
+            cf = ConsolFun.valueOf(infos.args[1]);
+            format = infos.args[2];
+        }
+        else {
+            format = infos.args[1];
+        }
+        format = format.replaceAll("%(\\d*\\.\\d*)lf", "@$1");
+        format = format.replaceAll("%s", "@s");
+        format = format.replaceAll("%%", "%");
+        //LOG.debug("gprint: oldformat = {} newformat = {}", gprint[2], format);
+        format = format.replaceAll("\\n", "\\\\l");
+        if(cf != null) {
+            if("GPRINT".equals(infos.type)) {
+                graphDef.gprint(srcName, cf, format);                                            
+            }
+            else {
+                graphDef.print(srcName, cf, format);                    
+            }
+        } else {
+            if("GPRINT".equals(infos.type)) {
+                graphDef.gprint(srcName, format);                    
+            }
+            else {
+                graphDef.print(srcName, format);                    
+            }
+        }
+        
+    }
+    
+    private void doLine(RrdGraphDef graphDef, String lineString) {
+        GraphDefInformations infos = parseGraphDefElement(lineString, 2, true);
+        float lineWidth = stringToType(infos.type.substring(4), Float.NaN).floatValue();
+        boolean stack = false;
+        if(infos.opts.containsKey("STACK"))
+            stack = true;
+        BasicStroke stroke;
+        //Options contains dashes, try to resolve it
+        if(infos.opts.containsKey("dashes")) {
+            String dashesCmd = infos.opts.get("dashes");
+            String dashOffsetCmd = infos.opts.get("dashe-offset");
+            float[] dashes;
+            if( ! dashesCmd.trim().isEmpty()) {
+                String[] dashesElements = dashesCmd.split(",");
+                dashes = new float[dashesElements.length];
+                for(int i= 0; i < dashesElements.length; i++) {
+                    dashes[i] = stringToType(dashesElements[i], (Float) null);
+                }                
+            } else {
+                // the rrdtool default dash
+                dashes = new float[] { 5.0f };
+            }
+            float dashOffset = stringToType(dashOffsetCmd, 0f);
+            stroke = new BasicStroke(lineWidth, DEFAULTSTROKE.getEndCap(), DEFAULTSTROKE.getLineJoin(), DEFAULTSTROKE.getMiterLimit(), dashes, dashOffset);
+        } else {
+            stroke = new BasicStroke(lineWidth);
+        }
+        String[] color = tokenize(infos.args[0], "#", true);
+        graphDef.line(color[0], getColorOrInvisible(color, 1), infos.args[1] != null ? infos.args[1] : "", stroke, stack);
     }
 
     private int resolveUnit(String unitName) {
