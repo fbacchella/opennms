@@ -6,7 +6,7 @@ Welcome to a fork of OpenNMS that adds a new RRD strategy : org.opennms.netmgt.r
 To use it, edit the rrd-configuration.xml, in the properties list change the value of `org.opennms.rrd.strategyClass` to `org.opennms.netmgt.rrd.rrd4j.Rrd4JRrdStrategy` and 
 `org.opennms.rrd.usetcp` to `false`.
 
-The RRD version can also be set with `org.rrd4j.core.RrdBackendFactory`. 1 is the old version, compatible with jrobin. 2 is a new and faster one.
+The RRD version can also be set with `org.rrd4j.core.RrdBackendFactory`. 1 is the old version, compatible with jrobin. 2 is a new and faster one. The differences are explained at [Rrdv2][]
 
 ```...
 <property name="properties">
@@ -57,3 +57,4 @@ If you are using Eclipse, please read the [Eclipse][] page for details on settin
 [Eclipse]:          http://www.opennms.org/wiki/Eclipse
 [Building_OpenNMS]: http://www.opennms.org/wiki/Building_OpenNMS
 [Rrd4J]:						https://code.google.com/p/rrd4j/
+[Rrdv2]:						https://code.google.com/p/rrd4j/wiki/FilePerformance
