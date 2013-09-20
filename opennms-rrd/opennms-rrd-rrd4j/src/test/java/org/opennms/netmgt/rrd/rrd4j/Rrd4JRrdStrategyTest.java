@@ -586,13 +586,14 @@ public class Rrd4JRrdStrategyTest {
         String[] command = new String[] {
                 "--start=" + start,
                 "--end=" + end,
-                "--font=TITLE:18:" + Font.SANS_SERIF,
+                "--font=TITLE:18:" + Font.SERIF,
         };
 
         RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
 
         assertEquals("Default font size", 18, graphDef.getFont(FontTag.TITLE).getSize());
-        assertEquals("Default font name", Font.SANS_SERIF, graphDef.getFont(FontTag.TITLE).getFontName());
+        // Can't use font name directly, in some case Font(NAME, ...) != NAME
+        assertEquals("Default font name", new Font(Font.SERIF, Font.PLAIN, 1).getFontName() , graphDef.getFont(FontTag.TITLE).getFontName());
     }
 
     public File createRrdFile() throws Exception {
