@@ -46,6 +46,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -93,16 +94,23 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     private static final Set<String> FONTS = new HashSet<String>();
     // Map VDEF string to variable class that will be instanciated
     private static final Map<String, Class< ? extends Variable>> VDEFOPERATORS = new HashMap<String, Class< ? extends Variable>>();
+    // A list of all CF
+    private static final Set<String> CFLIST = new HashSet<String>(ConsolFun.values().length);
     // A default stroke, used to extract cap, join and miterlimit default values
     private static final BasicStroke DEFAULTSTROKE = new BasicStroke();
 
     static {
         // Fill with the color list from RRD4J
         COLORNAMES.addAll(Arrays.asList(RrdGraphConstants.COLOR_NAMES));
-        
+
         // Fill with the know fonts
         FONTS.addAll(Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
-        
+
+        // Fill with all CF
+        for(ConsolFun cf: ConsolFun.values()) {
+            CFLIST.add(cf.name());
+        }
+
         // Fill the variables names
         VDEFOPERATORS.put("MAXIMUM", Variable.MAX.class);
         VDEFOPERATORS.put("MINIMUM", Variable.MIN.class);
@@ -121,6 +129,11 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         String name;
         String[] args;
         Map<String, String> opts;
+        @Override
+        public String toString() {
+            return String.format("%s(%s)=%s/%s", type, name, Arrays.toString(args), opts);
+        }
+
     }
 
     /*
@@ -452,6 +465,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         }        
     }
 
+    @SuppressWarnings("unchecked")
     private <ArgClass> ArgClass parseOptType(String arg, String paramaName, Iterator<String> i, ArgClass defaultVal, String error) {
         if(defaultVal != null) {
             String paramtry = String.format("--%s=", paramaName);
@@ -459,8 +473,11 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             if (arg.startsWith(paramtry)) {
                 paramStringValue =  arg.substring(paramtry.length());
             } else if (arg.equals("--" + paramaName)) {
-                if(i.hasNext()) {
+                if(i.hasNext() && ! (defaultVal instanceof Boolean)) {
                     paramStringValue = i.next();
+                }
+                else if (defaultVal instanceof Boolean) {
+                    return (ArgClass) Boolean.TRUE;
                 }
             }
             if(paramStringValue == null) {
@@ -470,7 +487,6 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         }
         else {
             if(defaultVal instanceof Boolean && arg.equals("--" + paramaName)) {
-                @SuppressWarnings("unchecked")
                 ArgClass n = (ArgClass) Boolean.TRUE;
                 return n;
             }
@@ -555,15 +571,14 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
     protected RrdGraphDef createGraphDef(final File workDir, final String[] inputArray) {
         RrdGraphDef graphDef = new RrdGraphDef();
         graphDef.setImageFormat("PNG");
+        graphDef.setLocale(Locale.US);
         long start = 0;
         long end = 0;
-        long step = 0;
+        // Default value: smallest step
+        long step = 1;
 
         int height = 100;
         int width = 400;
-        double lowerLimit = Double.NaN;
-        double upperLimit = Double.NaN;
-        boolean rigid = false;
         Map<String,List<String>> defs = new LinkedHashMap<String,List<String>>();
 
         final String[] commandArray;
@@ -609,11 +624,17 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 int exponent = parseOptType(arg, optName, i, new Integer(0), "--units-exponent must be followed by a number").intValue();
                 graphDef.setUnitsExponent(exponent);
             }
+            else if("interlaced".equals(optName)) {
+                boolean interlaced = parseOptType(arg, optName, i, Boolean.FALSE, "").booleanValue();
+                graphDef.setInterlaced(interlaced);;
+            }
             else if("lower-limit".equals(optName)) {
-                lowerLimit = parseOptType(arg, optName, i, new Double(0), "--lower-limit must be followed by a number").doubleValue();
+                double lowerLimit = parseOptType(arg, optName, i, new Double(0), "--lower-limit must be followed by a number").doubleValue();
+                graphDef.setMinValue(lowerLimit);
             }
             else if("upper-limit".equals(optName)) {
-                upperLimit = parseOptType(arg, optName, i, new Double(0), "--upper-limit must be followed by a number").doubleValue();
+                double upperLimit = parseOptType(arg, optName, i, new Double(0), "--upper-limit must be followed by a number").doubleValue();
+                graphDef.setMaxValue(upperLimit);
             }
             else if("base".equals(optName)) {
                 double base = parseOptType(arg, optName, i, new Double(0), "--base must be followed by a number").doubleValue();
@@ -636,7 +657,8 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 graphDef.setLazy(lazy);
             }
             else if("rigid".equals(optName)) {
-                rigid = parseOptType(arg, optName, i, Boolean.FALSE, "").booleanValue();
+                boolean rigid = parseOptType(arg, optName, i, Boolean.FALSE, "").booleanValue();
+                graphDef.setRigid(rigid);
             }
             else if("no-legend".equals(optName)) {
                 boolean noLegend = parseOptType(arg, optName, i, Boolean.FALSE, "").booleanValue();
@@ -674,6 +696,15 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 String yGrid = parseOptType(arg, optName, i, "", "--y-grid must be followed by an argument");
                 parseYGrid(graphDef, yGrid);
             }
+            else if("grid-dash".equals(optName)) {
+                String gridDash = parseOptType(arg, optName, i, "", "--grid-dash must be followed by an argument");
+                String[] elements = this.tokenize(gridDash, ":", false);
+                float[] dash = new float[elements.length];
+                for(int j = 0 ; j < dash.length ; j++) {
+                    dash[j] = stringToType(elements[j], Float.NaN);
+                }
+                graphDef.setGridStroke(new BasicStroke(1f, DEFAULTSTROKE.getEndCap(), DEFAULTSTROKE.getLineJoin(), DEFAULTSTROKE.getMiterLimit(), dash, 0f));
+            }
             //no-gridfit
             //
 
@@ -683,11 +714,16 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             // force-rules-legend
             // legend-direction
             // imginfo
-            // grid-dash
             // border
             // dynamic-labels
             // zoom
-            // font-render-mode
+            else if("font-render-mode".equals(optName)) {
+                String fontRenderMode = parseOptType(arg, optName, i, "normal", "--font-render-mode must be followed by an argument").trim().toLowerCase();
+                if("normal".equals(fontRenderMode) || "light".equals(fontRenderMode)) {
+                    graphDef.setTextAntiAliasing(true);                    
+                }
+                // Don't mess with font hint, the jvm manage it
+            }
             // font-smoothing-threshold
             // pango-markup
             else if(arg.startsWith("DEF:")) {
@@ -716,15 +752,14 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                     }
                     String startString = infos.opts.get("start");
                     long frStart = start;
-                    if(startString == null) {
+                    if(startString != null) {
                         frStart = new TimeParser(startString).parse().getTimestamp();
                     }
                     String endString = infos.opts.get("end");
                     long frEnd = end;
-                    if(endString == null) {
+                    if(endString != null) {
                         frEnd = new TimeParser(endString).parse().getTimestamp();
                     }
-                    //Needs to be improved, no way to use it in rrd4j
                     //String cfString = infos.opts.get("reduce");
                     //if(cfString == null) {
                     //    cfString = infos.args[2];
@@ -776,7 +811,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             } else if (LINEPATTERN.matcher(arg).find()) {
                 doLine(graphDef, arg);
             } else if (arg.startsWith("AREA:")) {
-                GraphDefInformations infos = parseGraphDefElement(arg, 2, true);
+                GraphDefInformations infos = parseGraphDefElement(arg, 2, false);
                 boolean stack = false;
                 if(infos.opts.containsKey("STACK"))
                     stack = true;
@@ -802,9 +837,6 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         }
 
         graphDef.setTimeSpan(start, end);
-        graphDef.setMinValue(lowerLimit);
-        graphDef.setMaxValue(upperLimit);
-        graphDef.setRigid(rigid);
         graphDef.setHeight(height);
         graphDef.setWidth(width);
 
@@ -1078,6 +1110,8 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             double pctRank = Double.valueOf(rhs[1]);
             Variable var = new Variable.PERCENTILENAN(pctRank);
             graphDef.datasource(sourceName, rhs[0], var);
+        } else {
+            throw new IllegalArgumentException("Invalid VDEF description: " + sourceName + "=" + Arrays.toString(rhs));      
         }
     }
 
@@ -1115,47 +1149,51 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         graphDef.setTimeAxis(minorUnit, minorUnitCount, majorUnit, majorUnitCount,
                 labelUnit, labelUnitCount, labelSpan, fmt);
     }
-    
+
     @SuppressWarnings("deprecation")
     private void doPrint(RrdGraphDef graphDef, String printString) {
         GraphDefInformations infos = parseGraphDefElement(printString, 3, false);
         String srcName = infos.args[0];
-        String format;
+        String format = infos.args[1];
         ConsolFun cf = null;
-        if(infos.args[2] != null) {
-            cf = ConsolFun.valueOf(infos.args[1]);
+        if(infos.args[2] != null && CFLIST.contains(infos.args[1])) {
+            // The deprecated format [G]PRINT:vname:CF:format
             format = infos.args[2];
+            cf = ConsolFun.valueOf(infos.args[1]);
+        } else if (infos.args[2] != null) {
+            // The new format [G]PRINT:vname:format:[strftime]?
+            // The third argument is not an argument but an option
+            infos.opts.put(infos.args[2], null);
+            infos.args[2] = null;
         }
-        else {
-            format = infos.args[1];
-        }
-        format = format.replaceAll("%(\\d*\\.\\d*)lf", "@$1");
-        format = format.replaceAll("%s", "@s");
-        format = format.replaceAll("%%", "%");
-        //LOG.debug("gprint: oldformat = {} newformat = {}", gprint[2], format);
         format = format.replaceAll("\\n", "\\\\l");
-        if(cf != null) {
+        //LOG.debug("gprint: oldformat = {} newformat = {}", gprint[2], format);
+        if(cf == null) {
+            boolean strftime = infos.opts.containsKey("strftime");
             if("GPRINT".equals(infos.type)) {
-                graphDef.gprint(srcName, cf, format);                                            
+                graphDef.gprint(srcName, format, strftime);                    
+            }
+            else {
+                graphDef.print(srcName, format, strftime);                    
+            }                    
+        } else {
+            if("GPRINT".equals(infos.type)) {
+                graphDef.gprint(srcName, cf, format);                    
             }
             else {
                 graphDef.print(srcName, cf, format);                    
-            }
-        } else {
-            if("GPRINT".equals(infos.type)) {
-                graphDef.gprint(srcName, format);                    
-            }
-            else {
-                graphDef.print(srcName, format);                    
-            }
+            }                    
         }
-        
     }
-    
+
     private void doLine(RrdGraphDef graphDef, String lineString) {
-        GraphDefInformations infos = parseGraphDefElement(lineString, 2, true);
+        GraphDefInformations infos = parseGraphDefElement(lineString, 2, false);
         float lineWidth = stringToType(infos.type.substring(4), Float.NaN).floatValue();
         boolean stack = false;
+        String legend = "";
+        if(infos.args.length >= 2) {
+            legend = infos.args[1];
+        }
         if(infos.opts.containsKey("STACK"))
             stack = true;
         BasicStroke stroke;
@@ -1168,7 +1206,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 String[] dashesElements = tokenize(dashesCmd, ",", false);
                 dashes = new float[dashesElements.length];
                 for(int i= 0; i < dashesElements.length; i++) {
-                    dashes[i] = stringToType(dashesElements[i], (Float) null);
+                    dashes[i] = stringToType(dashesElements[i], Float.NaN);
                 }                
             } else {
                 // the rrdtool default dash
@@ -1180,7 +1218,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
             stroke = new BasicStroke(lineWidth);
         }
         String[] color = tokenize(infos.args[0], "#", true);
-        graphDef.line(color[0], getColorOrInvisible(color, 1), infos.args[1] != null ? infos.args[1] : "", stroke, stack);
+        graphDef.line(color[0], getColorOrInvisible(color, 1), legend, stroke, stack);
     }
 
     private int resolveUnit(String unitName) {

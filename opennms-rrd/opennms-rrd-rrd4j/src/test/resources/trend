@@ -1,0 +1,47 @@
+--start 1272232740
+--end 1272664740
+--title="Disk Usage Prediction: {ns-dskPath}"
+--width 620
+--height 200
+--interlaced
+--vertical-label="Disk used (%)"
+--lower-limit=0
+--upper-limit=100
+--rigid
+DEF:pused1=@rrd1@:ns-dskPercent:AVERAGE
+DEF:pused2=@rrd1@:ns-dskPercent:AVERAGE:start=1272664740-1w
+DEF:pused3=@rrd1@:ns-dskPercent:AVERAGE:start=1272664740-1m
+VDEF:D2=pused2,LSLSLOPE
+VDEF:H2=pused2,LSLINT
+CDEF:avg2=pused2,POP,D2,COUNT,*,H2,+
+CDEF:abc2=avg2,90,100,LIMIT
+CDEF:5=5
+CDEF:90=90
+LINE1:90
+AREA:5#FF000022::STACK
+AREA:5#FF000044::STACK 
+COMMENT:"                       Now          Min              Avg             Max\\n"
+AREA:pused1#00880077:"Disk Used"
+GPRINT:pused1:LAST:"%12.0lf%%"
+GPRINT:pused1:MIN:"%10.0lf%%"
+GPRINT:pused1:AVERAGE:"%13.0lf%%"
+GPRINT:pused1:MAX:"%13.0lf%%\\n"
+COMMENT:" \\n"
+VDEF:minabc2=abc2,FIRST
+VDEF:maxabc2=abc2,LAST
+VDEF:D3=pused3,LSLSLOPE
+VDEF:H3=pused3,LSLINT
+CDEF:avg3=pused3,POP,D3,COUNT,*,H3,+
+CDEF:abc3=avg3,90,100,LIMIT
+VDEF:minabc3=abc3,FIRST
+VDEF:maxabc3=abc3,LAST
+AREA:abc2#FFBB0077
+AREA:abc3#0077FF77
+LINE2:abc2#FFBB00
+LINE2:abc3#0077FF
+LINE2:avg2#FFBB00:"Trend since 1 week                           :dashes=10"
+LINE2:avg3#0077FF:"Trend since 1 month\\n:dashes=10"
+PRINT:minabc2:"  Reach  90%% at %tc":strftime
+PRINT:minabc3:"  Reach  90%% at %tc":strftime
+PRINT:maxabc2:"  Reach 100%% at %tc":strftime
+PRINT:maxabc3:"  Reach 100%% at %tc":strftime

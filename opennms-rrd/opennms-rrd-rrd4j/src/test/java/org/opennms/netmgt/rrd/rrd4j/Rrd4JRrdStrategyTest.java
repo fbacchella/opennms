@@ -38,11 +38,14 @@ import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -68,6 +71,7 @@ import org.springframework.util.StringUtils;
  * Unit tests for the Rrd4jRrdStrategy.
  * 
  * @author <a href="mailto:dj@opennms.org">DJ Gregor</a>
+ * @author Fabrice Bacchella
  */
 public class Rrd4JRrdStrategyTest {
 
@@ -111,7 +115,6 @@ public class Rrd4JRrdStrategyTest {
         try {
             m_strategy.createGraph(command, new File(""));
         } catch (Throwable t) {
-            System.out.println(t);
             ta.throwableReceived(t);
 
             // We don't care about the exact message, just a few details
@@ -125,6 +128,30 @@ public class Rrd4JRrdStrategyTest {
     }
 
     @Test
+    public void testComplexTrend() throws IOException {
+        InputStream cmdStream = getClass().getResourceAsStream("/trend");
+        String rrdPath = getClass().getResource("/trend.rrd").getFile();
+        byte[] buffer = new byte[2000];
+        int length = cmdStream.read(buffer);
+        String cmd = new String(buffer, 0, length, "ASCII");
+        cmd = cmd.replaceAll("\n", " ");
+        String[] cmds = Rrd4JRrdStrategy.tokenizeWithQuotingAndEscapes(cmd, " ", true);
+        for(int i = 0 ; i < cmds.length ; i++) {
+            cmds[i] = cmds[i].replaceAll("@rrd1@", rrdPath);
+        }
+
+        RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), cmds);
+        graphDef.setLocale(Locale.US);
+        RrdGraph graph = new RrdGraph(graphDef);
+        RrdGraphInfo graphinfo = graph.getRrdGraphInfo();
+        String[] lines = graphinfo.getPrintLines();
+        Assert.assertEquals("  Reach  90% at Wed Apr 28 10:30:00 CEST 2010", lines[0]);
+        Assert.assertEquals("  Reach  90% at Wed Apr 28 11:00:00 CEST 2010", lines[1]);
+        Assert.assertEquals("  Reach 100% at Sat May 01 00:00:00 CEST 2010", lines[2]);
+        Assert.assertEquals("  Reach 100% at Sat May 01 00:00:00 CEST 2010", lines[3]);
+    }
+
+    @Test
     public void testDefWithEscapedCharacters() throws Exception {
         long end = System.currentTimeMillis() / 1000;
         long start = end - (24 * 60 * 60);
@@ -133,8 +160,8 @@ public class Rrd4JRrdStrategyTest {
                 "--end=" + (end + 300),
                 "DEF:baz=response/fe80\\:0000\\:0000\\:0000\\:0000\\:0000\\:0000\\:0000\\%5/dns.rrd:bar:AVERAGE",
                 "VDEF:avg=baz,AVERAGE",
-                "VDEF:min=baz,MIN",
-                "VDEF:max=baz,MAX",
+                "VDEF:min=baz,MINIMUM",
+                "VDEF:max=baz,MAXIMUM",
                 "VDEF:tot=baz,TOTAL",
                 "VDEF:nfp=baz,95,PERCENT",
                 "PRINT:avg:AVERAGE:\"%le\"",
@@ -231,8 +258,8 @@ public class Rrd4JRrdStrategyTest {
                 "--end=" + (endTime + 300),
                 "DEF:baz=" + rrdFile.getAbsolutePath().replace("\\", "\\\\") + ":bar:AVERAGE",
                 "VDEF:avg=baz,AVERAGE",
-                "VDEF:min=baz,MIN",
-                "VDEF:max=baz,MAX",
+                "VDEF:min=baz,MINIMUM",
+                "VDEF:max=baz,MAXIMUM",
                 "VDEF:tot=baz,TOTAL",
                 "VDEF:nfp=baz,95,PERCENT",
                 "PRINT:avg:AVERAGE:%le",
@@ -270,8 +297,8 @@ public class Rrd4JRrdStrategyTest {
                 "CDEF:bazX1=baz,1,*",
                 "CDEF:bazX1P0=bazX1,0,+",
                 "VDEF:avg=bazX1,AVERAGE",
-                "VDEF:min=bazX1,MIN",
-                "VDEF:max=bazX1,MAX",
+                "VDEF:min=bazX1,MINIMUM",
+                "VDEF:max=bazX1,MAXIMUM",
                 "VDEF:tot=bazX1,TOTAL",
                 "VDEF:nfp=bazX1,95,PERCENT",
                 "VDEF:nfp2=bazX1P0,95,PERCENT",
@@ -415,9 +442,6 @@ public class Rrd4JRrdStrategyTest {
 
         int secondHeight = graph2.getRrdGraphInfo().getHeight();
 
-        System.out.println(Arrays.toString(graph.getRrdGraphInfo().getPrintLines()));
-        System.out.println(Arrays.toString(graph2.getRrdGraphInfo().getPrintLines()));
-
         assertFalse("first graph height " + firstHeight + " and second graph height " + secondHeight + " should not be equal... there should be another line with a newline in the second one making it taller", firstHeight == secondHeight);
     }
 
@@ -429,7 +453,8 @@ public class Rrd4JRrdStrategyTest {
                 "--start=" + start,
                 "--end=" + end,
                 "CDEF:something=1",
-                "PRINT:something:AVERAGE:\"%le\""
+                "VDEF:avg=something,AVERAGE",
+                "PRINT:avg:\"%le\""
         };
 
         RrdGraphDef graphDef = ((Rrd4JRrdStrategy)m_strategy).createGraphDef(new File(""), command);
@@ -541,7 +566,6 @@ public class Rrd4JRrdStrategyTest {
 
     @Test
     public void parseFont() throws IOException {
-        System.out.println(Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
         long end = System.currentTimeMillis();
         long start = end - (24 * 60 * 60 * 1000);
         String[] command = new String[] {
