@@ -1,8 +1,8 @@
 /*******************************************************************************
  * This file is part of OpenNMS(R).
  *
- * Copyright (C) 2012 The OpenNMS Group, Inc.
- * OpenNMS(R) is Copyright (C) 1999-2012 The OpenNMS Group, Inc.
+ * Copyright (C) 2006-2013 The OpenNMS Group, Inc.
+ * OpenNMS(R) is Copyright (C) 1999-2013 The OpenNMS Group, Inc.
  *
  * OpenNMS(R) is a registered trademark of The OpenNMS Group, Inc.
  *
@@ -26,38 +26,16 @@
  *     http://www.opennms.com/
  *******************************************************************************/
 
-package org.opennms.features.topology.plugins.topo;
+package org.opennms.netmgt.dao.api;
+
+import org.opennms.netmgt.model.OnmsFilterFavorite;
 
 import java.util.List;
 
-import org.opennms.features.topology.api.Operation;
-import org.opennms.features.topology.api.OperationContext;
-import org.opennms.features.topology.api.topo.VertexRef;
+public interface FilterFavoriteDao extends OnmsDao<OnmsFilterFavorite, Integer> {
+    OnmsFilterFavorite findBy(String userName, String filterName);
 
-public class ExampleOperation implements Operation {
+    List<OnmsFilterFavorite> findBy(String userName, OnmsFilterFavorite.Page page);
 
-
-    @Override
-    public String getId() {
-        return null;
-    }
-
-    @Override
-    public Undoer execute(List<VertexRef> targets, OperationContext operationContext) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public boolean display(List<VertexRef> targets, OperationContext operationContext) {
-        // TODO Auto-generated method stub
-        return false;
-    }
-
-    @Override
-    public boolean enabled(List<VertexRef> targets, OperationContext operationContext) {
-        // TODO Auto-generated method stub
-        return false;
-    }
-
+    boolean existsFilter(String userName, String filterName, OnmsFilterFavorite.Page page);
 }
