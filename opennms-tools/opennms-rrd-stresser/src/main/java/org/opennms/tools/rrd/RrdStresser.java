@@ -100,7 +100,7 @@ public class RrdStresser {
     //Effectively this is the total runtime
     static final int UPDATE_TIME = Integer.getInteger("stresstest.updatetime", 300).intValue();
 
-    static final String EXTENSION = ".jrb";
+    static String extension;
 
     static long filesPerZero = FILE_COUNT / ZERO_FILES;
 
@@ -130,10 +130,10 @@ public class RrdStresser {
 
     static String getFileName(int fileNum) {
         if (FILES_PER_DIR == 0) {
-            return RRD_PATH + fileNum + EXTENSION;
+            return RRD_PATH + fileNum + extension;
         } else {
             int dirNum = fileNum / FILES_PER_DIR;
-            return RRD_PATH + File.separator + dirNum + File.separator + fileNum + EXTENSION;
+            return RRD_PATH + File.separator + dirNum + File.separator + fileNum + extension;
         }
 
     }
@@ -283,8 +283,8 @@ public class RrdStresser {
         File file = new File(fileName);
         String dir = file.getParent();
         String dsName = file.getName();
-        if (dsName.endsWith(EXTENSION)) {
-            dsName = dsName.substring(0, dsName.length() - EXTENSION.length());
+        if (dsName.endsWith(extension)) {
+            dsName = dsName.substring(0, dsName.length() - extension.length());
         }
         RrdDataSource rrdDataSource = new RrdDataSource(dsName, "GAUGE", 600, "U", "U");
 		return rrd.createDefinition("stressTest", dir, dsName, 300, Collections.singletonList(rrdDataSource), Arrays.asList(RRA_LIST));
@@ -296,6 +296,7 @@ public class RrdStresser {
 
     private static void rrdInitialize() throws Exception {
     	rrd = RrdUtils.getStrategy();
+    	extension = rrd.getDefaultFileExtension();
     }
 
     private static Object rrdOpenFile(String fileName) throws Exception {
