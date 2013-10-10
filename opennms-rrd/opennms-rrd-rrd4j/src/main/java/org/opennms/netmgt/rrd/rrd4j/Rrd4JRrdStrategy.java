@@ -576,6 +576,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         RrdGraphDef graphDef = new RrdGraphDef();
         graphDef.setImageFormat("PNG");
         graphDef.setLocale(Locale.US);
+        graphDef.setFontSet(true);
         long start = 0;
         long end = 0;
         // Default value: smallest step
