@@ -536,6 +536,10 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
         info.args = new String[countArgs];
         if(isData) {
             String[] nametokens = token[1].split("=");
+            if(nametokens.length != 2) {
+                LOG.error("can't parse data line " + line);
+                throw new IllegalArgumentException("can't parse data line " + line);
+            }
             info.name = nametokens[0];
             info.args[0] = nametokens[1];
         }
@@ -748,7 +752,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                     try {
                         db = new RrdDb(dsFile.getCanonicalPath());
                     } catch (IOException e1) {
-                        throw new RuntimeException();
+                        throw new RuntimeException("IO exception on " + dsFile.getPath() + " :" + e1.getMessage());
                     }
                     String startString = infos.opts.get("start");
                     long frStart = start;
