@@ -823,7 +823,7 @@ public class Rrd4JRrdStrategy implements RrdStrategy<RrdDef,RrdDb> {
                 String[] color = tokenize(infos.args[0], "#", true);
                 graphDef.area(color[0], getColorOrInvisible(color, 1), infos.args[1] != null ? infos.args[1] : "", stack);
             } else if (arg.startsWith("STACK:")) {
-                GraphDefInformations infos = parseGraphDefElement(arg, 2, true);
+                GraphDefInformations infos = parseGraphDefElement(arg, 2, false);
                 String[] color = tokenize(infos.args[0], "#", true);
                 graphDef.stack(color[0], getColorOrInvisible(color, 1), infos.args[1] != null ? infos.args[1] : "");
             } else if (arg.startsWith("HRULE:")) {
