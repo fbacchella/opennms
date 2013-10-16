@@ -1,6 +1,35 @@
+/*******************************************************************************
+ * This file is part of OpenNMS(R).
+ *
+ * Copyright (C) 2006-2012 The OpenNMS Group, Inc.
+ * OpenNMS(R) is Copyright (C) 1999-2012 The OpenNMS Group, Inc.
+ *
+ * OpenNMS(R) is a registered trademark of The OpenNMS Group, Inc.
+ *
+ * OpenNMS(R) is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published
+ * by the Free Software Foundation, either version 3 of the License,
+ * or (at your option) any later version.
+ *
+ * OpenNMS(R) is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with OpenNMS(R).  If not, see:
+ *      http://www.gnu.org/licenses/
+ *
+ * For more information contact:
+ *     OpenNMS(R) Licensing <license@opennms.org>
+ *     http://www.opennms.org/
+ *     http://www.opennms.com/
+ *******************************************************************************/
 package org.opennms.features.vaadin.dashboard.dashlets;
 
 import com.vaadin.server.ExternalResource;
+import com.vaadin.server.Page;
+import com.vaadin.shared.ui.label.ContentMode;
 import com.vaadin.ui.*;
 import org.opennms.features.vaadin.dashboard.model.Dashlet;
 import org.opennms.features.vaadin.dashboard.model.DashletSpec;
@@ -20,11 +49,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Created with IntelliJ IDEA.
- * User: chris
- * Date: 09.10.13
- * Time: 22:29
- * To change this template use File | Settings | File Templates.
+ * This dashlet class is used to display the reports of a Ksc report.
+ *
+ * @author Christian Pape
  */
 public class KscDashlet extends VerticalLayout implements Dashlet {
     private NodeDao m_nodeDao;
@@ -41,7 +68,7 @@ public class KscDashlet extends VerticalLayout implements Dashlet {
     private DashletSpec m_dashletSpec;
 
     /**
-     *
+     * The grid layout used to layout the graphs
      */
     private GridLayout m_gridLayout;
 
@@ -155,7 +182,6 @@ public class KscDashlet extends VerticalLayout implements Dashlet {
         int height = 0;
 
         /*
-
         try {
             width = Integer.parseInt(m_dashletSpec.getParameters().get("width"));
         } catch (NumberFormatException numberFormatException) {
@@ -181,6 +207,10 @@ public class KscDashlet extends VerticalLayout implements Dashlet {
          * adding the components
          */
 
+        Page.getCurrent().getStyles().add(".box { margin: 5px; background-color: #444; border: 1px solid #999; border-top: 0; overflow: auto; }");
+        Page.getCurrent().getStyles().add(".text { color:#ffffff; line-height: 11px; font-size: 9px; font-family: 'Lucida Grande', Verdana, sans-serif; font-weight: bold; }");
+        Page.getCurrent().getStyles().add(".margin { margin:5px; }");
+
         for (int y = 0; y < m_gridLayout.getRows(); y++) {
             for (int x = 0; x < m_gridLayout.getColumns(); x++) {
 
@@ -197,11 +227,66 @@ public class KscDashlet extends VerticalLayout implements Dashlet {
                     String urlString = "/opennms/graph/graph.png?resourceId=" + graph.getResourceId() + "&report=" + graph.getGraphtype() + "&start=" + beginTime.getTimeInMillis() + "&end=" + endTime.getTimeInMillis() + (width > 0 ? "&width=" + width : "") + (height > 0 ? "&height=" + height : "");
 
                     Image image = new Image(null, new ExternalResource(urlString));
+
                     VerticalLayout verticalLayout = new VerticalLayout();
-                    verticalLayout.addComponent(new Label(data.get("nodeLabel")));
-                    verticalLayout.addComponent(new Label(data.get("resourceTypeLabel") + ": " + data.get("resourceLabel")));
+
+                    HorizontalLayout horizontalLayout = new HorizontalLayout();
+                    horizontalLayout.addStyleName("box");
+                    horizontalLayout.setWidth("100%");
+                    horizontalLayout.setHeight("42px");
+
+                    VerticalLayout leftLayout = new VerticalLayout();
+                    leftLayout.setDefaultComponentAlignment(Alignment.TOP_LEFT);
+                    leftLayout.addStyleName("margin");
+
+                    Label labelTitle;
+
+                    if (graph.getTitle() == null || "".equals(graph.getTitle())) {
+                        labelTitle = new Label("&nbsp;");
+                        labelTitle.setContentMode(ContentMode.HTML);
+                    } else {
+                        labelTitle = new Label(graph.getTitle());
+                    }
+
+                    labelTitle.addStyleName("text");
+
+                    Label labelFrom = new Label("From: " + beginTime.getTime().toString());
+                    labelFrom.addStyleName("text");
+
+                    Label labelTo = new Label("To: " + endTime.getTime().toString());
+                    labelTo.addStyleName("text");
+
+                    Label labelNodeLabel = new Label(data.get("nodeLabel"));
+                    labelNodeLabel.addStyleName("text");
+
+                    Label labelResourceLabel = new Label(data.get("resourceTypeLabel") + ": " + data.get("resourceLabel"));
+                    labelResourceLabel.addStyleName("text");
+
+                    leftLayout.addComponent(labelTitle);
+                    leftLayout.addComponent(labelFrom);
+                    leftLayout.addComponent(labelTo);
+
+                    VerticalLayout rightLayout = new VerticalLayout();
+                    rightLayout.setDefaultComponentAlignment(Alignment.TOP_LEFT);
+                    rightLayout.addStyleName("margin");
+
+                    rightLayout.addComponent(labelNodeLabel);
+                    rightLayout.addComponent(labelResourceLabel);
+
+                    horizontalLayout.addComponent(leftLayout);
+                    horizontalLayout.addComponent(rightLayout);
+
+                    horizontalLayout.setExpandRatio(leftLayout, 1.0f);
+                    horizontalLayout.setExpandRatio(rightLayout, 1.0f);
+
+                    verticalLayout.addComponent(horizontalLayout);
                     verticalLayout.addComponent(image);
+                    verticalLayout.setWidth(image.getWidth() + "px");
+
                     m_gridLayout.addComponent(verticalLayout, x, y);
+
+                    verticalLayout.setComponentAlignment(horizontalLayout, Alignment.MIDDLE_CENTER);
+                    verticalLayout.setComponentAlignment(image, Alignment.MIDDLE_CENTER);
                     m_gridLayout.setComponentAlignment(verticalLayout, Alignment.MIDDLE_CENTER);
                 }
                 i++;
@@ -209,6 +294,13 @@ public class KscDashlet extends VerticalLayout implements Dashlet {
         }
     }
 
+    /**
+     * Returns a map with graph metadata for a given nodeId.
+     *
+     * @param nodeId     the nodeId
+     * @param resourceId the resourceId
+     * @return a map with meta data, like resourceLabel, resourceTypeLabel
+     */
     public Map<String, String> getDataForResourceId(final String nodeId, final String resourceId) {
         return (Map<String, String>) m_transactionOperations.execute(new TransactionCallback<Object>() {
             @Override
