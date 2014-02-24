@@ -58,12 +58,12 @@ public class SearchBoxConnector extends AbstractComponentConnector {
     public void onStateChanged(StateChangeEvent stateChangeEvent) {
         super.onStateChanged(stateChangeEvent);
 
-        if(stateChangeEvent.hasPropertyChanged("suggestions")){
+        if(stateChangeEvent.hasPropertyChanged("suggestions") || stateChangeEvent.hasPropertyChanged("triggerCount")){
             SuggestOracle.Response response = new SuggestOracle.Response(getState().getSuggestions());
             if(m_callback != null){
                 m_callback.onSuggestionsReady(m_request, response);
             }
-
+            getState().getTriggerCount();
         }
 
         if (stateChangeEvent.hasPropertyChanged("selected")) {
@@ -113,5 +113,9 @@ public class SearchBoxConnector extends AbstractComponentConnector {
 
     public void centerOnSuggestion(SearchSuggestion searchSuggestion) {
         m_rpc.centerSearchSuggestion(searchSuggestion);
+    }
+
+    public void toggleSuggestionCollapse(SearchSuggestion searchSuggestion) {
+        m_rpc.toggleSuggestionCollapse(searchSuggestion);
     }
 }

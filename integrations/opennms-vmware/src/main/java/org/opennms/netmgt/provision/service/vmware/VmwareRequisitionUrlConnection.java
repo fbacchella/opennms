@@ -36,7 +36,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.http.conn.util.InetAddressUtils;
 import org.exolab.castor.xml.MarshalException;
 import org.exolab.castor.xml.ValidationException;
-import org.opennms.core.utils.BeanUtils;
+import org.opennms.core.spring.BeanUtils;
 import org.opennms.core.utils.url.GenericURLConnection;
 import org.opennms.core.xml.JaxbUtils;
 import org.opennms.netmgt.model.PrimaryType;
@@ -81,7 +81,7 @@ public class VmwareRequisitionUrlConnection extends GenericURLConnection {
     private String m_hostname = null;
     private String m_username = null;
     private String m_password = null;
-    private String m_foreignSource = null;
+    protected String m_foreignSource = null;
 
     private boolean m_importVMPoweredOn = true;
     private boolean m_importVMPoweredOff = false;
@@ -695,7 +695,7 @@ public class VmwareRequisitionUrlConnection extends GenericURLConnection {
 
                     // add memory
                     try {
-                        node.putAsset(new RequisitionAsset("memory", Math.round(hostSystem.getHardware().getMemorySize()/1000000f) + " MB"));
+                        node.putAsset(new RequisitionAsset("ram", Math.round(hostSystem.getHardware().getMemorySize()/1000000f) + " MB"));
                     } catch (Exception e) {
                         logger.debug("Can't find Memory information for {}", hostSystem.getName());
                     }
@@ -760,7 +760,7 @@ public class VmwareRequisitionUrlConnection extends GenericURLConnection {
 
                     // add memory
                     try {
-                        node.putAsset(new RequisitionAsset("memory", virtualMachine.getConfig().getHardware().getMemoryMB() + " MB"));
+                        node.putAsset(new RequisitionAsset("ram", virtualMachine.getConfig().getHardware().getMemoryMB() + " MB"));
                     } catch (Exception e) {
                         logger.debug("Can't find Memory information for {}", virtualMachine.getName());
                     }

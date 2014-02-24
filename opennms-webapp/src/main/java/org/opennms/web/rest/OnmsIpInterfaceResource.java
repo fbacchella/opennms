@@ -70,13 +70,6 @@ import com.sun.jersey.api.core.ResourceContext;
 import com.sun.jersey.spi.resource.PerRequest;
 
 @Component
-/**
- * <p>OnmsIpInterfaceResource class.</p>
- *
- * @author ranger
- * @version $Id: $
- * @since 1.8.1
- */
 @PerRequest
 @Scope("prototype")
 @Transactional
@@ -230,6 +223,10 @@ public class OnmsIpInterfaceResource extends OnmsRestService {
             final BeanWrapper wrapper = PropertyAccessorFactory.forBeanPropertyAccess(ipInterface);
     
             for(final String key : params.keySet()) {
+                // skip nodeId since we already know the node this is associated with and don't want to overwrite it
+                if ("nodeId".equals(key)) {
+                    continue;
+                }
                 if (wrapper.isWritableProperty(key)) {
                     final String stringValue = params.getFirst(key);
                     final Object value = wrapper.convertIfNecessary(stringValue, (Class<?>)wrapper.getPropertyType(key));
